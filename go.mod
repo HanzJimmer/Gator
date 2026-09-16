@@ -1,3 +1,3 @@
-module github.com/HanzJimmer/Gator.git
+module github.com/HanzJimmer/Gator
 
 go 1.26.5

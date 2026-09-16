@@ -9,14 +9,14 @@ import (
 func main() {
 	beforeConfig, err := config.Read()
 	if err != nil {
-		fmt.Errorf("Error reading before config file: %s", err)
+		fmt.Printf("Error reading before config file: %s", err)
 	}
 
-	beforeConfig.SetUser()
+	beforeConfig.SetUser("Hans")
 
 	afterConfig, err := config.Read()
 	if err != nil {
-		fmt.Errorf("Error reading after config file: %s", err)
+		fmt.Printf("Error reading after config file: %s", err)
 	}
 
 	fmt.Println(afterConfig)
