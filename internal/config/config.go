@@ -32,7 +32,7 @@ func Read() (Config, error) {
 
 func (c *Config) SetUser(user string) error {
 	c.CurrentUserName = user
-	return write(*c)
+	return write(c)
 }
 
 const configFileName = ".gatorconfig.json"
