@@ -9,9 +9,9 @@ type command struct {
 
 func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
-		return fmt.Errorf("not enough arguments")
+		return fmt.Errorf("not enough arguments for login")
 	}
-	if err := s.State.SetUser(cmd.name); err != nil {
+	if err := s.State.SetUser(cmd.args[0]); err != nil {
 		return err
 	}
 	fmt.Println("Username has been set")

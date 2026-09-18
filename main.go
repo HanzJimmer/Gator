@@ -22,7 +22,7 @@ func main() {
 
 	args := os.Args
 	if len(args) < 2 {
-		log.Fatalf("not enough arguments")
+		log.Fatalf("error: no command found")
 	}
 
 	commandName := args[1]
@@ -30,7 +30,10 @@ func main() {
 
 	handlerCmd := command{commandName, commandArgs}
 
-	handlerCommands.run(&gatorState, handlerCmd)
+	err = handlerCommands.run(&gatorState, handlerCmd)
+	if err != nil {
+		log.Fatalf("error: username required")
+	}
 
 	afterConfig, err := config.Read()
 	if err != nil {
