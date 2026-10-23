@@ -1,6 +1,13 @@
 package main
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/HanzJimmer/Gator/internal/database"
+	"github.com/google/uuid"
+)
 
 type command struct {
 	name string
@@ -15,6 +22,31 @@ func handlerLogin(s *state, cmd command) error {
 		return err
 	}
 	fmt.Println("Username has been set")
+	return nil
+}
+
+func handlerRegister(s *state, cmd command) error {
+	if len(cmd.args) == 0 {
+		return fmt.Errorf("not enough arguments to register user")
+	}
+
+	var newUser database.User
+
+	if newUser, err := s.db.GetUser(context.Background(), cmd.args[0]); err == nil {
+		return fmt.Errorf("user already exists")
+	}
+
+	userParams := database.CreateUserParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      cmd.args[0],
+	}
+
+	if newUser, err := s.db.CreateUser(context.Background(), userParams); err != nil {
+
+	}
+
 	return nil
 }
 

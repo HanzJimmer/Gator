@@ -1,11 +1,15 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"os"
 
+	_ "github.com/lib/pq"
+
 	"github.com/HanzJimmer/Gator/internal/config"
+	"github.com/HanzJimmer/Gator/internal/database"
 )
 
 func main() {
@@ -14,7 +18,10 @@ func main() {
 		fmt.Printf("Error reading before config file: %s", err)
 	}
 
-	gatorState := state{&cfg}
+	db, err := sql.Open("postgres", cfg.DbUrl)
+	dbQueries := database.New(db)
+
+	gatorState := state{&cfg, dbQueries}
 
 	var handlerCommands = commands{make(map[string]func(*state, command) error)}
 
