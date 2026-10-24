@@ -26,6 +26,9 @@ func main() {
 	var handlerCommands = commands{make(map[string]func(*state, command) error)}
 
 	handlerCommands.register("login", handlerLogin)
+	handlerCommands.register("register", handlerRegister)
+	handlerCommands.register("reset", handlerReset)
+	handlerCommands.register("users", handlerUsers)
 
 	args := os.Args
 	if len(args) < 2 {
@@ -39,13 +42,6 @@ func main() {
 
 	err = handlerCommands.run(&gatorState, handlerCmd)
 	if err != nil {
-		log.Fatalf("error: username required")
+		log.Fatalf("error: %v", err)
 	}
-
-	afterConfig, err := config.Read()
-	if err != nil {
-		fmt.Printf("Error reading after config file: %s", err)
-	}
-
-	fmt.Println(afterConfig)
 }

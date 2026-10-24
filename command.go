@@ -18,7 +18,14 @@ func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
 		return fmt.Errorf("not enough arguments for login")
 	}
-	if err := s.State.SetUser(cmd.args[0]); err != nil {
+
+	user, err := s.db.GetUser(context.Background(), cmd.args[0])
+
+	if err != nil {
+		return fmt.Errorf("user does not exit")
+	}
+
+	if err := s.State.SetUser(user.Name); err != nil {
 		return err
 	}
 	fmt.Println("Username has been set")
@@ -30,9 +37,9 @@ func handlerRegister(s *state, cmd command) error {
 		return fmt.Errorf("not enough arguments to register user")
 	}
 
-	var newUser database.User
+	_, err := s.db.GetUser(context.Background(), cmd.args[0])
 
-	if newUser, err := s.db.GetUser(context.Background(), cmd.args[0]); err == nil {
+	if err == nil {
 		return fmt.Errorf("user already exists")
 	}
 
@@ -43,8 +50,42 @@ func handlerRegister(s *state, cmd command) error {
 		Name:      cmd.args[0],
 	}
 
-	if newUser, err := s.db.CreateUser(context.Background(), userParams); err != nil {
+	newUser, err := s.db.CreateUser(context.Background(), userParams)
 
+	if err != nil {
+		return fmt.Errorf("error when creating new user: %w", err)
+	}
+
+	s.State.SetUser(newUser.Name)
+
+	fmt.Printf("User created: %s", newUser.Name)
+
+	return nil
+}
+
+func handlerReset(s *state, cmd command) error {
+	err := s.db.ResetTable(context.Background())
+
+	if err != nil {
+		return fmt.Errorf("error resetting the table: %v", err)
+	}
+
+	fmt.Println("Table reset successfully")
+	return nil
+}
+
+func handlerUsers(s *state, cmd command) error {
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("error retrieving user list: %v", err)
+	}
+
+	for _, user := range users {
+		if s.State.CurrentUserName == user.Name {
+			fmt.Printf("* %s (current)\n", user.Name)
+			continue
+		}
+		fmt.Printf("* %s\n", user.Name)
 	}
 
 	return nil
