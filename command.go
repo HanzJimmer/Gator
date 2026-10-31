@@ -63,7 +63,7 @@ func handlerRegister(s *state, cmd command) error {
 
 	s.State.SetUser(newUser.Name)
 
-	fmt.Printf("User created: %s", newUser.Name)
+	fmt.Printf("User created: %s\n", newUser.Name)
 
 	return nil
 }
@@ -103,7 +103,47 @@ func handlerAgg(s *state, cmd command) error {
 		return fmt.Errorf("error retrieving RSS feed: %v", err)
 	}
 
-	fmt.Printf("Feed struct: %v", rssFeed)
+	fmt.Printf("Feed struct: %+v\n", rssFeed)
+	return nil
+}
+
+func handlerAddFeed(s *state, cmd command) error {
+	if len(cmd.args) < 2 {
+		return fmt.Errorf("not enough args")
+	}
+
+	feedName := cmd.args[0]
+	feedURL := cmd.args[1]
+
+	currentUser, err := s.db.GetUser(context.Background(), s.State.CurrentUserName)
+	if err != nil {
+		return fmt.Errorf("no current user: %v", err)
+	}
+
+	feedParams := database.CreateFeedParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      feedName,
+		Url:       feedURL,
+		UserID:    currentUser.ID,
+	}
+
+	feed, err := s.db.CreateFeed(context.Background(), feedParams)
+
+	fmt.Printf("Feed added:\n%+v\n", feed)
+
+	return nil
+}
+
+func handlerFeeds(s *state, cmd command) error {
+	feeds, err := s.db.GetFeedsWithUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("error parsing feeds %v", err)
+	}
+	for _, feed := range feeds {
+		fmt.Printf("Feed Name: %v\nFeed URL: %v\nOwner: %v\n\n", feed.Name, feed.Url, feed.UserName.String)
+	}
 	return nil
 }
 
