@@ -2,10 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
+	"html"
+	"io"
+	"net/http"
 	"time"
 
 	"github.com/HanzJimmer/Gator/internal/database"
+	. "github.com/HanzJimmer/Gator/internal/rss"
 	"github.com/google/uuid"
 )
 
@@ -91,6 +96,17 @@ func handlerUsers(s *state, cmd command) error {
 	return nil
 }
 
+func handlerAgg(s *state, cmd command) error {
+	feedURL := "https://www.wagslane.dev/index.xml"
+	rssFeed, err := fetchFeed(context.Background(), feedURL)
+	if err != nil {
+		return fmt.Errorf("error retrieving RSS feed: %v", err)
+	}
+
+	fmt.Printf("Feed struct: %v", rssFeed)
+	return nil
+}
+
 type commands struct {
 	commands map[string]func(*state, command) error
 }
@@ -105,4 +121,39 @@ func (c *commands) run(s *state, cmd command) error {
 
 func (c *commands) register(name string, f func(*state, command) error) {
 	c.commands[name] = f
+}
+
+func fetchFeed(ctx context.Context, feedURL string) (*RSSFeed, error) {
+	var newRSSFeed RSSFeed
+
+	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "gator")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	data, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := xml.Unmarshal(data, &newRSSFeed); err != nil {
+		return nil, err
+	}
+
+	newRSSFeed.Channel.Title = html.UnescapeString(newRSSFeed.Channel.Title)
+	newRSSFeed.Channel.Description = html.UnescapeString(newRSSFeed.Channel.Description)
+
+	for i := range newRSSFeed.Channel.Item {
+		newRSSFeed.Channel.Item[i].Title = html.UnescapeString(newRSSFeed.Channel.Item[i].Title)
+		newRSSFeed.Channel.Item[i].Description = html.UnescapeString(newRSSFeed.Channel.Item[i].Description)
+	}
+
+	return &newRSSFeed, nil
 }
