@@ -107,18 +107,13 @@ func handlerAgg(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
-	if len(cmd.args) < 2 {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
+	if len(cmd.args) != 2 {
 		return fmt.Errorf("not enough args")
 	}
 
 	feedName := cmd.args[0]
 	feedURL := cmd.args[1]
-
-	currentUser, err := s.db.GetUser(context.Background(), s.State.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("no current user: %v", err)
-	}
 
 	feedParams := database.CreateFeedParams{
 		ID:        uuid.New(),
@@ -126,13 +121,67 @@ func handlerAddFeed(s *state, cmd command) error {
 		UpdatedAt: time.Now(),
 		Name:      feedName,
 		Url:       feedURL,
-		UserID:    currentUser.ID,
+		UserID:    user.ID,
 	}
 
 	feed, err := s.db.CreateFeed(context.Background(), feedParams)
+	if err != nil {
+		return fmt.Errorf("error creating feed: %v", err)
+	}
 
-	fmt.Printf("Feed added:\n%+v\n", feed)
+	feedFollowParams := database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	}
 
+	feedFollow, err := s.db.CreateFeedFollow(context.Background(), feedFollowParams)
+	if err != nil {
+		return fmt.Errorf("error creating feed-follow relationship: %v", err)
+	}
+
+	fmt.Printf("Feed added: %+v\n", feed.Name)
+	fmt.Printf("Feed-Follow relation created: \nUser: %v\nFeed: %v", feedFollow.UserName, feedFollow.FeedName)
+
+	return nil
+}
+
+func handlerFollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("not enough args")
+	}
+
+	feedURL := cmd.args[0]
+	feed, err := s.db.GetFeed(context.Background(), feedURL)
+	if err != nil {
+		return fmt.Errorf("error retrieving feed: %v", err)
+	}
+
+	feedFollowParams := database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	}
+
+	s.db.CreateFeedFollow(context.Background(), feedFollowParams)
+	fmt.Printf("%v now following %v", user.Name, feed.Name)
+	return nil
+}
+
+func handlerFollowing(s *state, cmd command, user database.User) error {
+	followList, err := s.db.GetFeedFollowsForUser(context.Background(), user.ID)
+	if err != nil {
+		return fmt.Errorf("error retrieving follow list: %v", err)
+	}
+
+	fmt.Printf("Current User: %v\nFeeds Followed:\n", user.Name)
+	for _, follow := range followList {
+		fmt.Printf("Feed Name: %v\n", follow.FeedName)
+	}
 	return nil
 }
 
@@ -143,6 +192,25 @@ func handlerFeeds(s *state, cmd command) error {
 	}
 	for _, feed := range feeds {
 		fmt.Printf("Feed Name: %v\nFeed URL: %v\nOwner: %v\n\n", feed.Name, feed.Url, feed.UserName.String)
+	}
+	return nil
+}
+
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("not enough args")
+	}
+
+	feedURL := cmd.args[0]
+	feed, err := s.db.GetFeed(context.Background(), feedURL)
+	if err != nil {
+		return fmt.Errorf("error retrieving feed: %v", err)
+	}
+
+	unfollowParams := database.UnfollowParams{UserID: user.ID, FeedID: feed.ID}
+	err = s.db.Unfollow(context.Background(), unfollowParams)
+	if err != nil {
+		return fmt.Errorf("error unfollowing: %v", err)
 	}
 	return nil
 }

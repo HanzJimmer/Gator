@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -30,8 +31,11 @@ func main() {
 	handlerCommands.register("reset", handlerReset)
 	handlerCommands.register("users", handlerUsers)
 	handlerCommands.register("agg", handlerAgg)
-	handlerCommands.register("addfeed", handlerAddFeed)
+	handlerCommands.register("addfeed", middlewareLoggedIn(handlerAddFeed))
 	handlerCommands.register("feeds", handlerFeeds)
+	handlerCommands.register("follow", middlewareLoggedIn(handlerFollow))
+	handlerCommands.register("following", middlewareLoggedIn(handlerFollowing))
+	handlerCommands.register("unfollow", middlewareLoggedIn(handlerUnfollow))
 
 	args := os.Args
 	if len(args) < 2 {
@@ -46,5 +50,15 @@ func main() {
 	err = handlerCommands.run(&gatorState, handlerCmd)
 	if err != nil {
 		log.Fatalf("error: %v", err)
+	}
+}
+
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
+	return func(s *state, cmd command) error {
+		user, err := s.db.GetUser(context.Background(), s.State.CurrentUserName)
+		if err != nil {
+			return fmt.Errorf("no current user: %v", err)
+		}
+		return handler(s, cmd, user)
 	}
 }
