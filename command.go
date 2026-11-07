@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/xml"
 	"fmt"
 	"html"
@@ -97,15 +98,61 @@ func handlerUsers(s *state, cmd command) error {
 }
 
 func handlerAgg(s *state, cmd command) error {
-	feedURL := "https://www.wagslane.dev/index.xml"
-	rssFeed, err := fetchFeed(context.Background(), feedURL)
+	if len(cmd.args) != 1 {
+		return fmt.Errorf("please enter only a refresh time. it should be a number and a time digit (i.e. 's' = second, 'm' = minute, 'h' = hour)")
+	}
+	time_between_reqs := cmd.args[0]
+	timeBetween, err := time.ParseDuration(time_between_reqs)
 	if err != nil {
-		return fmt.Errorf("error retrieving RSS feed: %v", err)
+		return fmt.Errorf("refresh time should be a number and a time digit (i.e. 's' = second, 'm' = minute, 'h' = hour): %v", err)
 	}
 
-	fmt.Printf("Feed struct: %+v\n", rssFeed)
+	fmt.Printf("Refreshing feeds every %v\n", timeBetween)
+	ticker := time.NewTicker(timeBetween)
+	for ; ; <-ticker.C {
+		scrapeFeeds(s)
+	}
+}
+
+func scrapeFeeds(s *state) error {
+	RSSFeed, err := s.db.GetNextFeedToFetch(context.Background())
+	if err != nil {
+		return fmt.Errorf("error retrieving next feed: %v", err)
+	}
+
+	fetchedParams := database.MarkFeedFetchedParams{LastFetchedAt: sql.NullTime{Time: time.Now(), Valid: true}, ID: RSSFeed.ID}
+
+	err = s.db.MarkFeedFetched(context.Background(), fetchedParams)
+	if err != nil {
+		return fmt.Errorf("error marking feed as fetched: %v", err)
+	}
+	renewFeed, err := fetchFeed(context.Background(), RSSFeed.Url)
+	if err != nil {
+		return fmt.Errorf("error renewing feed: %v", err)
+	}
+
+	fmt.Printf("Feed '%v' renewed:\n", renewFeed.Channel.Title)
+	for _, item := range renewFeed.Channel.Item {
+		fmt.Printf("Article Name: %v\n", item.Title)
+	}
 	return nil
 }
+
+// fetchedParams := database.MarkFeedFetchedParams{LastFetchedAt: sql.NullTime{Time: time.Now(), Valid: true}, ID: feed}
+// err = s.db.MarkFeedFetched(context.Background(), fetchedParams)
+// if err != nil {
+// 	return fmt.Errorf("error marking feed as fetched: %v", err)
+// }
+// renewFeed, err := fetchFeed(context.Background(), feed.Url)
+// if err != nil {
+// 	return fmt.Errorf("error renewing feed: %v", err)
+// }
+
+// fmt.Printf("Feed '%v' renewed:\n", renewFeed.Channel.Title)
+// for _, item := range renewFeed.Channel.Item {
+// 	fmt.Printf("Article Name: %v\n", item.Title)
+// }
+// return nil
 
 func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 2 {

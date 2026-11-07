@@ -11,7 +11,7 @@ import (
 
 const getFeeds = `-- name: GetFeeds :many
 SELECT
-    id, created_at, updated_at, name, url, user_id
+    id, created_at, updated_at, name, url, user_id, last_fetched_at
 FROM
     feeds
 `
@@ -32,6 +32,7 @@ func (q *Queries) GetFeeds(ctx context.Context) ([]Feed, error) {
 			&i.Name,
 			&i.Url,
 			&i.UserID,
+			&i.LastFetchedAt,
 		); err != nil {
 			return nil, err
 		}
