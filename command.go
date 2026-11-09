@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"log"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/HanzJimmer/Gator/internal/database"
@@ -131,28 +134,35 @@ func scrapeFeeds(s *state) error {
 		return fmt.Errorf("error renewing feed: %v", err)
 	}
 
-	fmt.Printf("Feed '%v' renewed:\n", renewFeed.Channel.Title)
 	for _, item := range renewFeed.Channel.Item {
-		fmt.Printf("Article Name: %v\n", item.Title)
+		var pubAt sql.NullTime
+		if pubTime, err := time.Parse(time.RFC1123Z, item.PubDate); err == nil {
+			pubAt = sql.NullTime{Time: pubTime, Valid: true}
+		}
+
+		postParams := database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now().UTC(),
+			UpdatedAt:   time.Now().UTC(),
+			Title:       sql.NullString{String: item.Title, Valid: true},
+			Url:         item.Link,
+			Description: sql.NullString{String: item.Description, Valid: true},
+			PublishedAt: pubAt,
+			FeedID:      RSSFeed.ID,
+		}
+
+		err = s.db.CreatePost(context.Background(), postParams)
+		if err != nil {
+			if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+				continue
+			}
+			log.Printf("Couldn't create post: %v", err)
+			continue
+		}
 	}
+	fmt.Printf("Feed '%v' renewed\n", renewFeed.Channel.Title)
 	return nil
 }
-
-// fetchedParams := database.MarkFeedFetchedParams{LastFetchedAt: sql.NullTime{Time: time.Now(), Valid: true}, ID: feed}
-// err = s.db.MarkFeedFetched(context.Background(), fetchedParams)
-// if err != nil {
-// 	return fmt.Errorf("error marking feed as fetched: %v", err)
-// }
-// renewFeed, err := fetchFeed(context.Background(), feed.Url)
-// if err != nil {
-// 	return fmt.Errorf("error renewing feed: %v", err)
-// }
-
-// fmt.Printf("Feed '%v' renewed:\n", renewFeed.Channel.Title)
-// for _, item := range renewFeed.Channel.Item {
-// 	fmt.Printf("Article Name: %v\n", item.Title)
-// }
-// return nil
 
 func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 2 {
@@ -251,13 +261,37 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 	feedURL := cmd.args[0]
 	feed, err := s.db.GetFeed(context.Background(), feedURL)
 	if err != nil {
-		return fmt.Errorf("error retrieving feed: %v", err)
+		return fmt.Errorf("error retrieving feed: %v\n", err)
 	}
 
 	unfollowParams := database.UnfollowParams{UserID: user.ID, FeedID: feed.ID}
 	err = s.db.Unfollow(context.Background(), unfollowParams)
 	if err != nil {
-		return fmt.Errorf("error unfollowing: %v", err)
+		return fmt.Errorf("error unfollowing: %v\n", err)
+	}
+	return nil
+}
+
+func handlerBrowse(s *state, cmd command, user database.User) error {
+	titleLimit := 2
+	var err error
+	if len(cmd.args) == 1 {
+		titleLimit, err = strconv.Atoi(cmd.args[0])
+		if err != nil {
+			return fmt.Errorf("please enter a valid number of posts to browse: %v\n", err)
+		}
+	}
+
+	postUserParam := database.GetPostsForUserParams{UserID: user.ID, Limit: int32(titleLimit)}
+
+	userPosts, err := s.db.GetPostsForUser(context.Background(), postUserParam)
+	if err != nil {
+		return fmt.Errorf("error retrieving posts for user: %v\n", err)
+	}
+
+	fmt.Printf("Printing posts for %s\n", user.Name)
+	for _, post := range userPosts {
+		fmt.Println(post.Title)
 	}
 	return nil
 }
